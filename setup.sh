@@ -1,4 +1,7 @@
 #!/bin/bash
+
+echo "export WEBGRAPH_HOME=$(pwd)" >> ~/.bashrc.user
+
 if [ ! -d "$(pwd)/lib/" ]; then
     mkdir $(pwd)/lib/
 fi
@@ -7,7 +10,7 @@ fi
 if [[ -z "${JAVA_HOME}" ]]; then
     echo "Setting value of JAVA_HOME"
     echo 'export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/' >> ~/.bashrc.user
-
+    source ~/.bashrc.user
 fi
 
 # If directory does not exist, download java
@@ -35,16 +38,19 @@ if [ ! -d "SPARK_PATH" ]; then
     echo "Spark download complete"
 
     # Download missing package to run for pyspark
-    curl -L "http://maven.twttr.com/com/hadoop/gplcompression/hadoop-lzo/0.4.20/hadoop-lzo-0.4.20.jar" > "$SPARK_PATH/jars/"
+    curl -L "http://maven.twttr.com/com/hadoop/gplcompression/hadoop-lzo/0.4.20/hadoop-lzo-0.4.20.jar" > "$SPARK_PATH/jars/hadoop-lzo-0.4.20.jar"
 fi
 
 # Change config to local config
 if [ ! -d "$SPARK_PATH/yarn_config" ]; then
-    cp -r "$YARN_CONF_DIR" "$SPARK_PATH"
+    cp -r "$YARN_CONF_DIR" "$SPARK_PATH/"
     mv "$SPARK_PATH/conf.snap" "$SPARK_PATH/yarn_config"
 
     # Replace core-site.xml with our own
-    cp "$(pwd)/etc/core-site.xml" "$SPARK_PATH/yarn_config/"
+    cp "$(pwd)/etc/core-site.xml" "$SPARK_PATH/yarn_config/core-site.xml"
+
+    # Add conf file to direct our python version
+    cp "$(pwd)/etc/spark-env.sh" "$SPARK_PATH/conf/spark-env.sh"
     
     # Set env variables for spark
     echo "Setting value of SPARK_VARIABLES"
@@ -52,6 +58,7 @@ if [ ! -d "$SPARK_PATH/yarn_config" ]; then
     echo 'export SPARK_LOCAL_IP=127.0.0.1' >> ~/.bashrc.user
     echo 'export PATH=$SPARK_HOME/bin:$PATH' >> ~/.bashrc.user
     echo "export YARN_CONF_DIR=$SPARK_PATH/yarn_config" >> ~/.bashrc.user
+    source ~/.bashrc.user
 fi
 
 MAVEN_PATH=$(pwd)/lib/apache-maven-3.6.1
@@ -68,6 +75,7 @@ if [ ! -d "MAVEN_PATH" ]; then
     echo "Setting value of MAVEN_VARIABLES"
     echo "export M2_HOME=$MAVEN_PATH" >> ~/.bashrc.user
     echo 'export PATH=$M2_HOME/bin:$PATH' >> ~/.bashrc.user
+    source ~/.bashrc.user
 fi
 
 if [ ! -d "$(pwd)/data/" ]; then
@@ -81,4 +89,21 @@ if [ ! -f "$(pwd)/data/example.arc.gz" ]; then
 fi
 
 
-source ~/.bashrc.user
+cd lib
+# clone AUT project
+if [ ! -f "$(pwd)/lib/aut" ]; then
+    echo "Cloning AUT project"
+    git clone http://github.com/archivesunleashed/aut.git aut
+    
+    cd aut
+    echo "Building AUT"
+    mvn clean install -DskipTests
+    
+    echo "export AUT_PATH=$(pwd)" >> ~/.bashrc.user
+
+    echo "Copying built jar file for quicker python calls"
+    cp $(pwd)/target/aut-*-SNAPSHOT-fatjar.jar "$SPARK_PATH/jars/aut-fatjar.jar"
+    source ~/.bashrc.user
+fi
+
+echo "Setup finished"
