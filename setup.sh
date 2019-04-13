@@ -23,15 +23,6 @@ fi
 #    echo "Jave download completed"
 #fi
 
-# Currently, this runs into error (https://github.com/archivesunleashed/aut/pull/314) not applied to release
-# Use the following call instead: [  ./spark-2.4.1-bin-hadoop2.7/bin/spark-shell --packages "io.archivesunleashed:aut:0.17.0"  ]
-# Download AUT for faster local-use
-if [ ! -d "$(pwd)/lib/aut" ]; then
-    echo "Downloading AUT"
-    mkdir "$(pwd)/lib/aut"
-    curl -L "https://github.com/archivesunleashed/aut/releases/download/aut-0.17.0/aut-0.17.0-fatjar.jar" > "$(pwd)/lib/aut/aut.jar"
-fi
-
 SPARK_PATH=$(pwd)/lib/spark-2.4.1-bin-hadoop2.7
 
 # Download spark
@@ -61,6 +52,22 @@ if [ ! -d "$SPARK_PATH/yarn_config" ]; then
     echo 'export SPARK_LOCAL_IP=127.0.0.1' >> ~/.bashrc.user
     echo 'export PATH=$SPARK_HOME/bin:$PATH' >> ~/.bashrc.user
     echo "export YARN_CONF_DIR=$SPARK_PATH/yarn_config" >> ~/.bashrc.user
+fi
+
+MAVEN_PATH=$(pwd)/lib/apache-maven-3.6.1
+
+# Download Maven
+if [ ! -d "MAVEN_PATH" ]; then
+    echo "Installing Maven"
+    
+    curl -L "http://apache.spinellicreations.com/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz" > $(pwd)/lib/maven.tgz
+    tar -xvf $(pwd)/lib/maven.tgz -C $(pwd)/lib/
+    rm $(pwd)/lib/maven.tgz
+    echo "Maven download complete"
+
+    echo "Setting value of MAVEN_VARIABLES"
+    echo "export M2_HOME=$MAVEN_PATH" >> ~/.bashrc.user
+    echo 'export PATH=$M2_HOME/bin:$PATH' >> ~/.bashrc.user
 fi
 
 if [ ! -d "$(pwd)/data/" ]; then
