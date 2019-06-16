@@ -1,9 +1,27 @@
 # WebGraph
 
+## Directory Structure
+- code 
+    - analysis: jupyter notebook files for visualization
+    - investigate: main files to generate webgraphs and different results
+- data: folder that could be used to store small data files for testing purposes
+        could copy a few files from a single year and use it as a small sample
+        One can just rename given `data_sample` directory to `data`
+- lib: library folder to install local framework. can include webgraph, apache-maven, aut, and spark    
+- etc: some configuration files that are handy
+- setup.sh: file to run for initial setup - make sure to read through / definitely not 100% tested
+
+
 ## Setup
 1. Log into server : @madmax4.stanford.edu
 2. Clone this directory and `cd` into it
 3. Run:`source setup.sh`. This will take a few minutes.
+
+## Webgraph
+1. Download the jar and dependencies in `lib/webgraph` directory
+2. When running java files, specify classpath
+e.g. `java -cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*" .... `
+
 
 ## Verification
 ### Environment variables
