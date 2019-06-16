@@ -1,0 +1,326 @@
+########################################################################################################
+STEP 1: Extract links from raw archives
+########################################################################################################
+Note: change the year in the file before running
+
+`spark-submit --driver-memory 700g --master local[*] 1_singleyear.py`
+
+########################################################################################################
+STEP 2: Extract hashed, filtered links
+########################################################################################################
+We only pick valid links, where both Src and Dest start with http or www
+Note this creates 2 files
+- filtered_links_with_hash.parquest: Output of step 1, but only the urls and their corresponding hashes.
+- hash_links.tsv: contains one file which (despite its name) is tab delimitied links between hashed nodes
+
+Note: change the year in the file before running
+
+```
+spark-submit --driver-memory 600g --master local[*] 2_filter_links_index_nodes.py
+```
+
+NOTE:
+Due to out of memory issues, tried separating this step into two files:
+
+```
+spark-submit --driver-memory 700g 2_part1_filter_links_index_nodes.py
+spark-submit --driver-memory 700g 2_part2_filter_links_index_nodes.py
+```
+
+########################################################################################################
+STEP 3: Change into webgraph format
+########################################################################################################
+
+== This can be also be done by using 4_webgraph.sh file
+
+3.a. Compile java class, if not compiled already
+`javac ScatteredArcsASCIIHexGraph`
+`javac ScatteredArcsASCIIHexGraphDirectory`
+
+Note: 1st version assumes that we have a single tsv file to load from, while
+2nd file loads from a directory. It is much faster to create a directory of files
+from spark, but it seems much slower to load from directory of files as well 
+
+3.b. Run java file, specify the output from step 2 (hash_links.tsv)
+
+Run this:
+```
+###### Make sure we have webgraph folder in target ####
+mkdir /dfs/scratch2/dankang/wb_links/2007/webgraph/
+
+java -cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*:." \
+    ScatteredArcsASCIIHexGraphDirectory \
+    /dfs/scratch2/dankang/wb_links/2007/hash_links.tsv/ \
+    /dfs/scratch2/dankang/wb_links/2007/webgraph/webgraph
+```
+
+
+This can be run if it is a single file: 
+```
+###### Make sure we have webgraph folder in target ####
+mkdir /dfs/scratch2/dankang/wb_links/2007/webgraph/
+
+java -cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*:." \
+    ScatteredArcsASCIIHexGraph \
+    /dfs/scratch2/dankang/wb_links/2007/webgraph/webgraph \
+    < /dfs/scratch2/dankang/wb_links/2007/hash_links.tsv/part-00000-1d07e876-d3fc-43b9-bd8d-b52cead99b70-c000.csv
+``` 
+   
+
+########################################################################################################
+STEP 4. Run webgraph algorithms
+########################################################################################################
+
+4.a Strongly connected components
+
+s flag: compute component size
+r flag: renumber components in decreasing-size order
+b flag: compute buckets (terminal nondangling component)
+```
+java -cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*" \
+	it.unimi.dsi.webgraph.algo.StronglyConnectedComponents \
+	-s -r -b \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph/webgraph \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph/webgraph 
+```
+
+4.b Stats
+-s: save-degrees
+
+```
+mkdir /dfs/scratch2/dankang/wb_links/2004/webgraph/stats/
+java
+java -cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*" \
+	it.unimi.dsi.webgraph.Stats \
+	-s \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph/webgraph \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph/stats/stats 
+```
+########################################################################################################
+Step 5. Reversed and Symmetric Graph
+########################################################################################################
+5.a Reverse the graph
+```
+mkdir /dfs/scratch2/dankang/wb_links/2007/webgraph_rev/
+
+java -Xmx256g \
+	-cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*" \
+	it.unimi.dsi.webgraph.Transform \
+	transpose \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph/webgraph \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph_rev/webgraph_rev 
+```
+
+5.b. Make the graph symmetric (undirected)
+
+```
+mkdir /dfs/scratch2/dankang/wb_links/2007/webgraph_u/
+
+java -Xmx256g \
+	-cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*" \
+	it.unimi.dsi.webgraph.Transform \
+	symmetrize \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph/webgraph \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph_rev/webgraph_rev \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph_u/webgraph_u 
+``` 
+
+5.c. Compute the scc components of the symmetric graph
+-s: compute component sizes
+-r: renumber components in decreasing-size order
+```
+java -Xmx128g \
+	-cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*" \
+	it.unimi.dsi.webgraph.algo.StronglyConnectedComponents \
+	-s -r -b \
+	/dfs/scratch2/dankang/wb_links/2010/webgraph_u/webgraph_u \
+	/dfs/scratch2/dankang/wb_links/2010/webgraph_u/webgraph_u
+```
+
+5.d. Get statistics about the graph
+```
+mkdir /dfs/scratch2/dankang/wb_links/2007/webgraph_u/stats/
+
+java -Xmx256g \
+	-cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*" \
+	it.unimi.dsi.webgraph.Stats \
+	-s \
+	/dfs/scratch2/dankang/wb_links/2010/webgraph_u/webgraph_u \
+	/dfs/scratch2/dankang/wb_links/2010/webgraph_u/stats/stats 
+```
+
+
+########################################################################################################
+6. Breath First Search
+########################################################################################################
+
+6.a get nodes to start bfs from
+
+we can use the following file to get nodes that are in Biggest SCC or those that are not
+# -n: number of nodes to generate for each group (in biggest SCC, not in biggest SCC)
+
+```
+
+// Compile java file if have not done before
+javac SCCNodes.java
+
+java -cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*:." \
+	SCCNodes \
+	-n 10 \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph/webgraph \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph/bfs_startnodes 
+```
+
+
+6.b. Add more nodes of interest to file
+
+Add more nodes of interest to file from previous step
+Suggested nodes to include:
+- Looking at stats, nodes with min/max indegree and min/max outdegree, if they are not already included
+
+
+6.c. Perform Parallel/Sequential Breadth Search
+# NOTE: parallel code does not work...use sequential for now
+ (do this for directed graph, reverse graph)
+# -t: number of threads to use
+# -n: number of nodes to sample
+
+```
+// Compile java file if have not done before
+javac SequentialBreadthFirst.java
+
+java -Xmx64g \
+	-cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*:." \
+	SequentialBreadthFirst \
+	-n 50 \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph/webgraph \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph/webgraph.bfs \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph/bfs_startnodes 
+
+OR
+
+// This is broken right now
+javac ParallelBreadthFirst.java
+
+java -Xmx128g \
+	-cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*:." \
+	ParallelBreadthFirst \
+	-t 16 -n 20 \
+	/dfs/scratch2/dankang/wb_links/2003/webgraph/webgraph \
+	/dfs/scratch2/dankang/wb_links/2003/webgraph/webgraph.bfs \
+	/dfs/scratch2/dankang/wb_links/2003/webgraph/bfs_startnodes 
+```
+
+
+6.d. Create reversed graph
+
+```
+mkdir /dfs/scratch2/dankang/wb_links/2010/webgraph_rev/
+
+java -Xmx256g \
+	-cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*" \
+	it.unimi.dsi.webgraph.Transform \
+	transpose \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph/webgraph \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph_rev/webgraph_rev 
+``` 
+
+6.e BFS on reversed graph
+```
+java -Xmx128g \
+	-cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*:." \
+	SequentialBreadthFirst \
+	-n 50 \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph_rev/webgraph_rev \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph_rev/webgraph_rev.bfs \
+	/dfs/scratch2/dankang/wb_links/2007/webgraph/bfs_startnodes 
+
+```
+
+########################################################################################################
+7. Domain Level Graph Extraction
+########################################################################################################
+
+Note: change the year in the file before running
+```
+	spark-submit --driver-memory 500gb 3_extract_domain.py
+
+```
+
+########################################################################################################
+8. Domain Level Graph Evaluation
+########################################################################################################
+Just utilize two shell scripts to perform same steps on domain level graph
+Make sure to read the file to change options accordingly
+
+```
+	sh 4_webgraph.sh YEAR
+	sh 5_bfs.sh YEAR
+```
+
+########################################################################################################
+9. Retrieving domain name
+########################################################################################################
+
+
+9.a 
+
+```
+javac NodeNumberToHex.java
+
+
+java -cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*:." \
+	NodeNumberToHex \
+	/dfs/scratch2/dankang/wb_links/2010/domain_webgraph/webgraph \
+	-n 29447
+```
+
+
+10. extract urls that we have downloaded
+
+
+########################################################################################################
+Hyperball
+########################################################################################################
+java -Xss256K -Xmx256g -XX:PretenureSizeThreshold=512M -XX:MaxNewSize=4G \
+      -XX:+UseNUMA -XX:+UseTLAB -XX:+ResizeTLAB \
+      -XX:+UseConcMarkSweepGC -XX:CMSInitiatingOccupancyFraction=99 -XX:+UseCMSInitiatingOccupancyOnly \
+      -verbose:gc -Xloggc:gc.log \
+	-cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*" \
+	it.unimi.dsi.webgraph.algo.HyperBall \
+	-l 4 -S 0 \
+	-n /dfs/scratch2/dankang/wb_links/2003/hyperball/neighborhood \
+	-h /dfs/scratch2/dankang/wb_links/2003/hyperball/harmonic_centrality \
+	-c /dfs/scratch2/dankang/wb_links/2003/hyperball/closeness_centrality \
+	-L /dfs/scratch2/dankang/wb_links/2003/hyperball/lin_centrality \
+	/dfs/scratch2/dankang/wb_links/2003/webgraph/webgraph \
+	/dfs/scratch2/dankang/wb_links/2003/webgraph_rev/webgraph_rev
+
+
+
+########################################################################################################
+RadiusDiameter
+########################################################################################################
+
+NOTE: if you don't specify -l option it might compute all eccentricities and take forever!
+java -Xmx256g \
+	-cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*" \
+	it.unimi.dsi.webgraph.algo.SumSweepUndirectedDiameterRadius \
+	-l RADIUSDIAMETER -g \
+	/dfs/scratch2/dankang/wb_links/2003_filtered/webgraph_u/webgraph_u \
+	/dfs/scratch2/dankang/wb_links/2003_filtered/webgraph_u/radiusdiameter
+
+java -Xmx256g \
+	-cp "/dfs/scratch2/dankang/WebGraph/lib/webgraph/*" \
+	it.unimi.dsi.webgraph.algo.SumSweepUndirectedDiameterRadius \
+	-l RADIUSDIAMETER -g \
+	/dfs/scratch2/dankang/wb_links/2003_filtered/webgraph/webgraph \
+	/dfs/scratch2/dankang/wb_links/2003_filtered/webgraph/radiusdiameter
+
+
+########################################################################################################
+10. Filtering out only the pages we have
+########################################################################################################
+10_singleyear_urls.py: extract urls from raw archives
+11_singleyear_urls_dedup.py: deduplicate urls from result of 10_singleyear_urls
+12_filter_links_by_url.py: using extracted links from before, only select links whose destinations appear in downloaded page urls

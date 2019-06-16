@@ -15,7 +15,8 @@ WB_PATH = "/dfs/dataset/wb"
 #file_path = WB_PATH + "/2003/general/2003-10_ae_org_uae_www_1_64494.warc.gz" # 55,072 bytes, 31 pages
 #file_path = WB_PATH + "/2003/general/2003-10_ai_gov_www_1_64504.warc.gz" # 2,897,638 bytes, 748 pages
 #file_path = WB_PATH + "/2003/general/2003-10_ae_gov_uae_www_1_64467.warc.gz" # 31,463,983 bytes, 8156 pages
-file_path = "/afs/cs.stanford.edu/u/dankang/WebGraph/data/2003_sample/"
+file_path = "/dfs/scratch2/dankang/WebGraph/data/2003_sample"
+#file_path = "/afs/cs.stanford.edu/u/dankang/WebGraph/data/2003_sample/"
 archive = WebArchive(sc, sqlContext, file_path)
 
 links = archive.links()
@@ -31,7 +32,8 @@ links.select(extract_domain("Src").alias("SrcDomain"), extract_domain("Dest").al
 # This is printing at page level
 links.show()
 print("Saving results")
-target_path = "/afs/cs.stanford.edu/u/dankang/WebGraph/data/2003_sample_page_level.parquet"
+target_path = "/dfs/scratch2/dankang/WebGraph/data/2003_sample_linkes.parquet"
+#target_path = "/afs/cs.stanford.edu/u/dankang/WebGraph/data/2003_sample_page_level.parquet"
 links.write.parquet(target_path)
 
 print("Reading from saved results")

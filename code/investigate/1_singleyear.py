@@ -4,15 +4,22 @@ from pyspark import SparkConf, SparkContext
 from pyspark.sql import SQLContext
 from aut import *
 import time
+import argparse
 
-conf = SparkConf() \
-    .set("spark.executor.memory", "4g") \
-    .set("spark.executor.memoryOverhead", "4g") \
-    .set("spark.executor.cores", 70)
+conf = SparkConf()
+#    .set("spark.executor.memory", "600g") \
+#    .set("spark.executor.cores", 70) \
+#    .set("spark.driver.memory", "4g")
+    #.set("spark.master", "local[2]")
+    #.set("spark.driver.cores", 70)
+
+
+    #.set("spark.executor.memoryOverhead", "4g") \
 
 sc = SparkContext(conf=conf)
 sqlContext = SQLContext(sc)
 WB_PATH = "/dfs/dataset/wb"
+print(sc.getConf().getAll())
 
 def timer(task, start, end):
     hours, rem = divmod(end - start, 3600)
@@ -30,12 +37,12 @@ def write_log(text):
 
 ##########################################################
 
-year = 2003
+year = 2013
 input_path = WB_PATH + "/{}/general/".format(year)
 target_path = "/dfs/scratch2/dankang/wb_links/{}/general_links".format(year)
 
-#input_path = "/afs/cs.stanford.edu/u/dankang/WebGraph/data/2003_sample"
-#target_path = "/afs/cs.stanford.edu/u/dankang/WebGraph/data/2003_sample_links"
+input_path ="/dfs/scratch2/dankang/WebGraph/data/2003_sample"
+target_path ="/dfs/scratch2/dankang/WebGraph/data/2003_sample_links"
 target_log_path = target_path + ".log"
 target_file_path = target_path + ".parquet"
 
@@ -85,5 +92,5 @@ all_end = time.time()
 timer("Everything: ", all_start, all_end)
 
 
-count_text = "Saved total of : {} links\n".format(links.count())
-print_and_log(count_text)
+#count_text = "Saved total of : {} links\n".format(links.count())
+#print_and_log(count_text)
