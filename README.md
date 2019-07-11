@@ -65,7 +65,7 @@ Again, **Change path** accordingly as before.
 ```
 from aut import *
 
-path = "file:///afs/cs.stanford.edu/u/USERID/WebGraph/data/example.arc.gz"
+path = "file:////afs/cs.stanford.edu/u/USERID/WebGraph/data/example.arc.gz"
 archive = WebArchive(sc, sqlContext, path)
 pages = archive.pages()
 pages.printSchema()
